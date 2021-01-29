@@ -17,19 +17,6 @@ for a hopping from (0, 0), i to (Ra, Rb), j
 
 using SparseArrays
 
-function readinteraction(path="input.in")
-    open(path, "r") do io
-        readline(io) # comment line
-        Nsites, L = [parse(Int, x) for x in split(readline(io))]
-        for line in eachline(io)
-            params = split(line)
-            Ra, Rb, i, j = [parse(Int, x) for x in params[1:end-1]]
-            J = parse(Float64, params[end])
-        end
-        return Nsites, L
-    end
-end
-
 function interaction(L, J2, J3=J2)
     ncells = L^2
     N = 6 * ncells
@@ -85,3 +72,4 @@ function interaction(L, J2, J3=J2)
     end
     return sparse(I, J, V)
 end
+

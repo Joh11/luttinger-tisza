@@ -78,17 +78,37 @@ def fourier_transform(int_mat, L, k):
 
     return (int_mat * np.exp(-1j * kRij)).sum(axis=(2, 3))
 
-L = 20
+L = 10
 N = 6 * L**2
-int_mat = interaction_matrix(L, 1, 1)
-low_energies = np.zeros((L, L))
-for i in range(L):
-    for j in range(L):
-        k = 2 * np.pi / L * np.array([i, j])
+int_mat = interaction_matrix(L, J2=2, J3=0.1)
+
+def plot_band(int_mat, L):
+    N = 6 * L**2
+    nkps = 50
+    Gamma = np.array([0, 0])
+    M = np.array([np.pi, 0])
+    X = np.array([np.pi, np.pi])
+    
+    kpath = np.concatenate([
+        np.linspace(Gamma, M, nkps, False),
+        np.linspace(M, X, nkps, False),
+        np.linspace(X, Gamma, nkps),
+    ])
+    
+    energies = np.zeros((len(kpath), 6))
+    for i, k in enumerate(kpath):
         mat = fourier_transform(int_mat, L, k)
-        low_energies[i, j] = np.linalg.eigh(mat)[0][0] / N
-print(low_energies)
-print(low_energies.reshape(-1).argmin(), np.min(low_energies))
+        energies[i] = np.linalg.eigh(mat)[0] / N
+
+    plt.figure()
+    for i in range(6):
+        plt.scatter(np.arange(len(kpath)), energies[:, i], c='red', s=0.1)
+
+    plt.xticks(nkps * np.arange(4), [r'$\Gamma$', 'M', 'X', r'$\Gamma$'])
+    plt.ylabel(r'eigenergies (per site)')
+    plt.show()
+    return energies
+energies = plot_band(int_mat, L)
 
 # try checking the couplings
 # positions = np.array([[2, 6],
