@@ -3,12 +3,13 @@
 # usage: lt_it.jl skl.dat J1 J2 ...
 
 # steps:
-# 1. read dat file
-# 2. init with random vector
+# DONE 1. read dat file
+# DONE 2. init with random vector
 # 3. monte carlo steps
 # 4. save
 
 using LinearAlgebra
+using Printf
 
 function iscomment(line)
     return line == "" || line[1] == '#'
@@ -83,9 +84,35 @@ function randomvec(L, Ns)
     return v
 end
 
-function main()
-    H = load_dat_file("skl.dat", [1, 0.4, 2])
-    v = randomvec(10, H.Ns)
+function mcstep(H, v, niter)
+    L = size(v)[1]
+    for n in 1:niter
+        # pick random spin
+        i, j = rand(1:L, 2)
+        s = rand(1:H.Ns)
+        # update spin
+        h = localfield(H, v, i, j, s)
+        v[i, j, s, :] = -normalize(h)
+    end
+end
 
-    println(energy(H, v))
+function main()
+    L = 10
+    tol = 1e-2
+    H = load_dat_file("skl.dat", [1, 0.4, 2])
+    Ntot = H.Ns * L^2
+    
+    v = randomvec(L, H.Ns)
+
+    E = energy(H, v)
+    Eold = E + tol + 1
+
+    while abs(E - Eold) > tol
+        Eold = E
+        mcstep(H, v, Ntot)
+        E = energy(H, v)
+        @printf "E = %f\n" E
+    end
+
+    return E, v
 end
