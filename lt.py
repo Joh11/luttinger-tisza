@@ -59,18 +59,45 @@ def ft(H, k):
 
     return ret / 2
 
+def plotband(H, N=50):
+    kpath = np.concatenate([
+        # Γ M
+        np.array([[1, 1]]) * np.linspace(0, np.pi, N, False).reshape(-1, 1),
+        # M X
+        np.array([[np.pi, 0]]) + np.array([[0, 1]]) * np.linspace(np.pi, 0, N, False).reshape(-1, 1),
+        # X Γ
+        np.array([[0, 0]]) + np.array([[1, 0]]) * np.linspace(np.pi, 0, N, False).reshape(-1, 1),
+        np.array([[0, 0]])
+    ])
+
+    nkps = len(kpath)
+    energies = np.zeros((nkps, H.Ns))
+    for i, k in enumerate(kpath):
+        print(f'Doing {i} / {nkps}')
+        mat = ft(H, k)
+        xs = np.linalg.eigh(mat)
+        energies[i] = xs[0]
+
+    # plot
+    plt.figure()
+    for band in energies.transpose():
+        plt.plot(np.arange(nkps), band, c='r')
+    plt.xticks([0, N, 2*N, 3*N], [r'$\Gamma$', 'M', 'X', r'$\Gamma$'])
+    plt.ylabel(r'$\varepsilon_n(\vec k)$')
+    plt.show()
+    
 def main():
     # SKL
-    J1, J2, J3 = 1, 1, 0 # trivial Néel order
+    J1, J2, J3 = 1, 2.5, 2.5 # trivial Néel order
     h = load_interaction_file('hamiltonians/skl.dat', [J1, J2, J3])
 
     # square lattice
     # J1, J2 = 1, 0 # should be only a pair of minima, with 2pi/3 phase
     # h = load_interaction_file('hamiltonians/square.dat', [J1, J2])
 
-    N = 20
-    kxs = np.linspace(-np.pi, np.pi, N, True)
-    kys = np.linspace(-np.pi, np.pi, N, True)
+    N = 51
+    kxs = np.linspace(-np.pi, np.pi, N)
+    kys = np.linspace(-np.pi, np.pi, N)
 
     kxv, kyv = np.meshgrid(kxs, kys)
     kxv = kxv.reshape(-1)
@@ -84,10 +111,7 @@ def main():
         xs = np.linalg.eigh(mat)
         energies[i] = xs[0]
 
-    # post process to show the minimum
-    # energies[energies < E0 + 1e-16] = 10
-
-    for i in range(h.Ns):
+    for i in [0, 1]: # range(h.Ns):
         plt.figure()
         plt.imshow(energies[:, i].reshape(N, N),
                    extent=np.pi * np.array([-1, 1, -1, 1]))
