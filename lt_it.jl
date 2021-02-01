@@ -12,7 +12,7 @@ using LinearAlgebra
 using Printf
 
 function iscomment(line)
-    return line == "" || line[1] == '#'
+    line == "" || line[1] == '#'
 end
 
 struct Hamiltonian
@@ -38,23 +38,21 @@ function load_dat_file(path, couplings)
             push!(bonds[s1+1], (i+1, j+1, s2+1, couplings[c+1]))
         end
 
-        return Hamiltonian(Ns, bonds)
+        Hamiltonian(Ns, bonds)
     end
 end
 
 function wrapindex(i, L)
-    return 1 + (i - 1) % L
+    1 + (i - 1) % L
 end
 
 function localfield(H, v, i, j, s)
     L = size(v)[3]
-    return sum(
-        map(H.couplings[s]) do (Δi, Δj, s2, c)
+    sum(map(H.couplings[s]) do (Δi, Δj, s2, c)
         c * v[:, s2,
               wrapindex(i + Δi, L),
               wrapindex(j + Δj, L)]
-        end
-    )
+        end)
 end
 
 function energy(H, v)
@@ -72,7 +70,7 @@ function energy(H, v)
         end
     end
 
-    return E / (H.Ns * L^2)
+    E / (H.Ns * L^2)
 end
     
 function randomvec(L, Ns)
@@ -84,7 +82,7 @@ function randomvec(L, Ns)
     return v
 end
 
-function mcstep(H, v, niter)
+function mcstep!(H, v, niter)
     L = size(v)[3]
     for n in 1:niter
         # pick random spin
@@ -111,12 +109,12 @@ function main()
 
     while abs(E - Eold) > tol
         Eold = E
-        mcstep(H, v, Ntot)
+        mcstep!(H, v, Ntot)
         E = energy(H, v)
         @printf "E = %f\n" E
     end
 
-    return E, v
+    E, v
 end
 
 # -----------------------------------------------------------------------------
