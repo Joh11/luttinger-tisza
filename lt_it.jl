@@ -10,6 +10,7 @@
 
 using LinearAlgebra
 using Printf
+using FFTW
 
 function iscomment(line)
     line == "" || line[1] == '#'
@@ -95,6 +96,25 @@ function mcstep!(H, v, niter)
     end
 end
 
+function structuralfactor(v, rs)
+    # rs shape: (2, Ns)
+    Ns, L = size(v)[2:3]
+    Ntot = Ns * L^2
+
+    vk = zeros(3, L, L)
+
+    kxs = 2π / L * (0:L-1)
+    kys = 2π / L * (0:L-1)
+    
+    for s in 1:Ns
+        vs = v[:, s, :, :]
+        kr = [dot([kx, ky], rs[:, s]) for kx in kxs, ky in kys]
+        vk += fft(vs, [2, 3]) .* reshape(exp(-1im * kr), (1, L, L))
+    end
+
+    1 / Ntot * mapslices(sum, conj(vk) .* vk, dims=1)
+end
+
 function main()
     L = 32
     tol = 1e-9
@@ -114,7 +134,7 @@ function main()
         @printf "E = %f\n" E
     end
 
-    E, v
+    E, v, structuralfactor(v, zeros(2, 1))
 end
 
 # -----------------------------------------------------------------------------
