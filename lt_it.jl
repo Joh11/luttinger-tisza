@@ -47,25 +47,25 @@ function wrapindex(i, L)
 end
 
 function localfield(H, v, i, j, s)
-    L = size(v)[1]
+    L = size(v)[3]
     return sum(
         map(H.couplings[s]) do (Δi, Δj, s2, c)
-        return c * v[wrapindex(i + Δi, L),
-                     wrapindex(j + Δj, L),
-                     s2, :]
+        c * v[:, s2,
+              wrapindex(i + Δi, L),
+              wrapindex(j + Δj, L)]
         end
     )
 end
 
 function energy(H, v)
-    L = size(v)[1]
+    L = size(v)[3]
     # simply the sum of spin . local field
     E = 0
     
     for s in 1:H.Ns
         for j in 1:L
             for i in 1:L
-                S = v[i, j, s, :]
+                S = v[:, s, i, j]
                 h = localfield(H, v, i, j, s)
                 E += dot(S, h)
             end
@@ -76,16 +76,16 @@ function energy(H, v)
 end
     
 function randomvec(L, Ns)
-    v = randn(L, L, Ns, 3)
+    v = randn(3, Ns, L, L)
     # normalize
-    mapslices(v, dims=4) do u
+    mapslices(v, dims=1) do u
         normalize!(u)
     end
     return v
 end
 
 function mcstep(H, v, niter)
-    L = size(v)[1]
+    L = size(v)[3]
     for n in 1:niter
         # pick random spin
         i = rand(1:L)
@@ -93,7 +93,7 @@ function mcstep(H, v, niter)
         s = rand(1:H.Ns)
         # update spin
         h = localfield(H, v, i, j, s)
-        v[i, j, s, :] = -normalize(h)
+        v[:, s, i, j] = -normalize(h)
     end
 end
 
