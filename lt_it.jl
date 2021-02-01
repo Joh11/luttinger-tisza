@@ -112,7 +112,7 @@ function structuralfactor(v, rs)
         vk += fft(vs, [2, 3]) .* reshape(exp(-1im * kr), (1, L, L))
     end
 
-    1 / Ntot * mapslices(sum, conj(vk) .* vk, dims=1)
+    1 / Ntot * real(mapslices(sum, conj(vk) .* vk, dims=1))
 end
 
 function main()
