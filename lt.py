@@ -25,7 +25,8 @@ def load_interaction_file(path, coupling_values):
             line = f.readline()
             
         Ns = int(line) # number of sublattices
-        ret = [[[]] * Ns] * Ns
+        # initialize ret (manually to avoid shallow copy)
+        ret = [[[] for j in range(Ns)] for i in range(Ns)]
 
         # read site coords
         n = 0
@@ -38,7 +39,6 @@ def load_interaction_file(path, coupling_values):
 
         # read couplings
         for line in f:
-            print(line)
             # skip comments
             if is_comment(line): continue
             s1, i, j, s2, coupling = [int(n) for n in line.split()]
@@ -50,27 +50,25 @@ def ft(H, k):
     """Computes the Fourier transform of the given Hamiltonian."""
     ret = np.zeros((H.Ns, H.Ns), dtype=complex)
     k = np.array(k)
-
+    
     for a in range(H.Ns):
         for b in range(H.Ns):
-            print(f'cs = {H.couplings[a][b]}')
             for i, j, c in H.couplings[a][b]:
                 R = np.array([i, j])
-                ret[a][b] += H.coupling_values[c] * np.exp(1j * k.dot(R))
+                ret[a, b] += H.coupling_values[c] * np.exp(1j * k.dot(R))
 
-    print(f"ft = {ret / 2}")
     return ret / 2
 
 def main():
     # SKL
-    # J1, J2, J3 = 1, 0.2, 0.1 # trivial Néel order
-    # h = load_interaction_file('skl.dat', [J1, J2, J3])
+    J1, J2, J3 = 1, 1, 0 # trivial Néel order
+    h = load_interaction_file('hamiltonians/skl.dat', [J1, J2, J3])
 
     # square lattice
-    J1, J2 = 1, 0 # should be only a pair of minima, with 2pi/3 phase
-    h = load_interaction_file('hamiltonians/square.dat', [J1, J2])
+    # J1, J2 = 1, 0 # should be only a pair of minima, with 2pi/3 phase
+    # h = load_interaction_file('hamiltonians/square.dat', [J1, J2])
 
-    N = 100
+    N = 20
     kxs = np.linspace(-np.pi, np.pi, N, True)
     kys = np.linspace(-np.pi, np.pi, N, True)
 
@@ -78,25 +76,25 @@ def main():
     kxv = kxv.reshape(-1)
     kyv = kyv.reshape(-1)
 
-    energies = np.zeros(N**2)
+    energies = np.zeros((N**2, h.Ns))
         
     for i, (kx, ky) in enumerate(zip(kxv, kyv)):
         print(f'Doing {i} / {N**2}')
         mat = ft(h, [kx, ky])
         xs = np.linalg.eigh(mat)
-        energies[i] = xs[0][0]
+        energies[i] = xs[0]
 
     # post process to show the minimum
-    E0 = min(energies)
     # energies[energies < E0 + 1e-16] = 10
-    
-    plt.figure()
-    plt.imshow(energies.reshape(N, N),
-               extent=np.pi * np.array([-1, 1, -1, 1]))
-    plt.xlabel('$k_x$')
-    plt.ylabel('$k_y$')
-    plt.title(r'$\epsilon_0(\vec k)$ [a.u.]')
-    plt.colorbar()
+
+    for i in range(h.Ns):
+        plt.figure()
+        plt.imshow(energies[:, i].reshape(N, N),
+                   extent=np.pi * np.array([-1, 1, -1, 1]))
+        plt.xlabel('$k_x$')
+        plt.ylabel('$k_y$')
+        plt.title(f'$\\epsilon_{i}(\\vec k)$ [a.u.]')
+        plt.colorbar()
     plt.show()
     return energies
 
