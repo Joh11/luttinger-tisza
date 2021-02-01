@@ -98,8 +98,8 @@ end
 function main()
     L = 32
     tol = 1e-9
-    # H = load_dat_file("skl.dat", [1, 0.4, 2])
-    H = load_dat_file("square.dat", [1, 0.1])
+    # H = load_dat_file("hamiltonians/skl.dat", [1, 0.4, 2])
+    H = load_dat_file("hamiltonians/square.dat", [1, 0.1])
     Ntot = H.Ns * L^2
     
     v = randomvec(L, H.Ns)
