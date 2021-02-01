@@ -169,6 +169,23 @@ function main()
     E, v, structuralfactor(v, H.rs)
 end
 
+function mkparams(n, min, max)
+    params = zeros(3, div((n + 1) * (n + 2), 2))
+    J1 = 1
+    
+    k = 1
+    for i in 0:n
+        J2 = min + (max - min) * i / n
+        for j in 0:i
+            J3 = min + (max - min) * j / n
+            params[:, k] = [J1, J2, J3]
+            k += 1
+        end
+    end
+    
+    params
+end
+
 # -----------------------------------------------------------------------------
 # Profiling
 # -----------------------------------------------------------------------------
