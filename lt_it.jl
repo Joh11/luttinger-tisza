@@ -46,66 +46,6 @@ function wrapindex(i, L)
     return 1 + (i - 1) % L
 end
 
-# -----------------------------------------------------------------------------
-# Macro stuff
-# -----------------------------------------------------------------------------
-
-# source
-# s1 -> [(Δi, Δj, s, c)]
-# ie
-# 1 -> [(0, 0, 1, 0.1),
-#       (0, 0, 2, 0.2)]
-
-# target
-function(v, i, j, s)
-    h = zeros(3)
-
-    if s == 1
-        h += c * v[i + Δi, j + Δj, s2, :]
-    elseif s == 2
-    end
-
-
-    return h
-end
-
-function f(cs)
-    quote
-        $([:(h += $c * v[i + $Δi, j + $Δj, $s, :])
-           for (Δi, Δj, s, c) in cs]...)
-    end
-end
-
-function ifclause(condfun, bodies, acc=1)
-    # build a if ... elseif ... elseif ... end construct, with
-    # condfun(i) as the condition, and bodies[i] as the ith clause
-    if acc == length(bodies)
-        Expr(acc == 1 ? :if : :elseif,
-             condfun(acc),
-             bodies[acc])
-    else
-        Expr(acc == 1 ? :if : :elseif,
-             condfun(acc),
-             bodies[acc],
-             ifclause(condfun, bodies, acc+1))
-    end
-end
-
-function mklocalfield(H)
-    condfun = n -> :(s == $n)
-    
-    e = quote function(v, i, j, s)
-        h = zeros(3)
-        $(ifclause(condfun, [f(H.couplings[s1]) for s1 in 1:H.Ns]))
-    end end
-    return eval(e)
-end
-
-# -----------------------------------------------------------------------------
-# Good old code
-# -----------------------------------------------------------------------------
-
-
 function localfield(H, v, i, j, s)
     L = size(v)[1]
     return sum(
@@ -122,9 +62,9 @@ function energy(H, v)
     # simply the sum of spin . local field
     E = 0
     
-    for i in 1:L
+    for s in 1:H.Ns
         for j in 1:L
-            for s in 1:H.Ns
+            for i in 1:L
                 S = v[i, j, s, :]
                 h = localfield(H, v, i, j, s)
                 E += dot(S, h)
@@ -148,7 +88,8 @@ function mcstep(H, v, niter)
     L = size(v)[1]
     for n in 1:niter
         # pick random spin
-        i, j = rand(1:L, 2)
+        i = rand(1:L)
+        j = rand(1:L)
         s = rand(1:H.Ns)
         # update spin
         h = localfield(H, v, i, j, s)
@@ -157,7 +98,7 @@ function mcstep(H, v, niter)
 end
 
 function main()
-    L = 64
+    L = 32
     tol = 1e-9
     # H = load_dat_file("skl.dat", [1, 0.4, 2])
     H = load_dat_file("square.dat", [1, 0.1])
@@ -176,4 +117,14 @@ function main()
     end
 
     return E, v
+end
+
+# -----------------------------------------------------------------------------
+# Profiling
+# -----------------------------------------------------------------------------
+
+function runn(n, fun)
+    for i in 1:n
+        fun()
+    end
 end
