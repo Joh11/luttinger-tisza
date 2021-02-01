@@ -16,12 +16,28 @@ function iscomment(line)
     line == "" || line[1] == '#'
 end
 
+struct ParamHamiltonian
+    # Like Hamiltonian, but the couplings are not replaced yet
+    Ns :: Int
+    couplings :: Array{Array{Tuple{Int, Int, Int, Int}}}
+    rs :: Array{Float64, 2} # shape: (2, Ns)
+end
+
 struct Hamiltonian
     Ns :: Int
     couplings :: Array{Array{Tuple{Int, Int, Int, Float64}}}
+    rs :: Array{Float64, 2} # shape: (2, Ns)
 end
 
-function load_dat_file(path, couplings)
+function mkhamiltonian(paramH, couplings)
+    Hamiltonian(paramH.Ns, map(paramH.couplings) do (cs)
+                map(cs) do (i, j, s, c)
+                (i, j, s, couplings[c])
+                end
+                end, paramH.rs)
+end
+
+function loadparamhamiltonian(path)
     open(path, "r") do io
         # compute the number of sites
         line = ""
@@ -29,18 +45,34 @@ function load_dat_file(path, couplings)
             line = readline(io)
         end
         Ns = parse(Int, line)
+        
+        # parse site coordinates
+        rs = zeros(2, Ns)
+        
+        let n = 1; while n <= Ns
+            # skip comments
+            line = readline(io)
+            if iscomment(line) continue end
+            rs[:, n] = [parse(Float64, x) for x in split(line)]
+            n += 1
+        end end
+        
         # now make a NsxNs matrix of arrays
-        bonds = fill(Tuple{Int, Int, Int, Float64}[], Ns)
+        bonds = fill(Tuple{Int, Int, Int, Int}[], Ns)
         
         for line in eachline(io)
             # skip comments
             if iscomment(line) continue end
             s1, i, j, s2, c = [parse(Int, x) for x in split(line)]
-            push!(bonds[s1+1], (i+1, j+1, s2+1, couplings[c+1]))
+            push!(bonds[s1+1], (i+1, j+1, s2+1, c+1))
         end
 
-        Hamiltonian(Ns, bonds)
+        ParamHamiltonian(Ns, bonds, rs)
     end
+end
+
+function loadhamiltonian(path, couplings)
+    mkhamiltonian(loadparamhamiltonian(path), couplings)
 end
 
 function wrapindex(i, L)
@@ -118,8 +150,8 @@ end
 function main()
     L = 32
     tol = 1e-9
-    # H = load_dat_file("hamiltonians/skl.dat", [1, 0.4, 2])
-    H = load_dat_file("hamiltonians/square.dat", [1, 0.1])
+    # H = loadhamiltonian("hamiltonians/skl.dat", [1, 0.4, 2])
+    H = loadhamiltonian("hamiltonians/square.dat", [1, 0.1])
     Ntot = H.Ns * L^2
     
     v = randomvec(L, H.Ns)
@@ -134,7 +166,7 @@ function main()
         @printf "E = %f\n" E
     end
 
-    E, v, structuralfactor(v, zeros(2, 1))
+    E, v, structuralfactor(v, H.rs)
 end
 
 # -----------------------------------------------------------------------------
