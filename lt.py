@@ -86,7 +86,7 @@ def plotband(H, N=50):
     plt.ylabel(r'$\varepsilon_n(\vec k)$')
     plt.show()
 
-def compute_energies(H, N=30):
+def compute_energies(H, N=20):
     kxs = np.linspace(-np.pi, np.pi, N)
     kys = np.linspace(-np.pi, np.pi, N)
 
@@ -103,10 +103,31 @@ def compute_energies(H, N=30):
     return energies, kxs, kys
 
 def classify_phase(Es, kxs, kys):
-    E0 = np.min(Es)
-    nkps = np.count_nonzero(np.isclose(E0, Es, atol=1e-3))
+    # old classification
+    # E0 = np.min(Es)
+    # nkps = np.count_nonzero(np.isclose(E0, Es, atol=1e-3))
 
-    return 'liquid' if nkps > 10 else 'order'
+    # return 'liquid' if nkps > 10 else 'order'
+
+    # new classification
+    Es = Es[:, 0]
+    E0 = np.min(Es)
+    idcs = np.where(np.isclose(E0, Es, atol=1e-1))[0]
+
+    kxv, kyv = np.meshgrid(kxs, kys)
+    kxv = kxv.reshape(-1)
+    kyv = kyv.reshape(-1)
+    
+    k = np.column_stack([kxv[idcs], kxv[idcs]])
+    # print(f'number of kpoints: {len(k)}')
+    mean, std = np.mean(k, axis=0), np.std(k, axis=0)
+    # print(f'mean={mean}, std={std}')
+    
+    if max(std) > 1:
+        return 'liquid'
+    else:
+        assert np.isclose(mean, [0, 0]).all()
+        return 'order'
     
 def phase_diagram():
     Jmin, Jmax = 0, 2.5
@@ -122,6 +143,7 @@ def phase_diagram():
     phases = np.zeros((NJ**2, 3))
     for i, (J2, J3) in enumerate(zip(J2v, J3v)):
         print(f'Doing {i} / {NJ ** 2} ({i / NJ**2 * 100}%)')
+        print(f'J2 = {J2}, J3 = {J3}')
         H = load_interaction_file('hamiltonians/skl.dat', [1, J2, J3])
         p = classify_phase(*compute_energies(H))
         if p == 'liquid':
@@ -132,7 +154,9 @@ def phase_diagram():
     phases = phases.reshape(NJ, NJ, 3)
 
     plt.figure()
-    plt.imshow(phases, origin='lower')
+    plt.imshow(phases,
+               origin='lower',
+               extent=[Jmin, Jmax, Jmin, Jmax])
     plt.xlabel('$J_2 / J_1$')
     plt.ylabel('$J_3 / J_1$')
     plt.show()
@@ -140,7 +164,7 @@ def phase_diagram():
     
 def main():
     # SKL
-    J1, J2, J3 = 1, 1, 1.1 # trivial Néel order
+    J1, J2, J3 = 1, 0.2777777777777778, 0.2777777777777778 # trivial Néel order
     h = load_interaction_file('hamiltonians/skl.dat', [J1, J2, J3])
 
     # square lattice
