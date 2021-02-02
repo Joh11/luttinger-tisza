@@ -81,21 +81,73 @@ def plotband(H, N=50):
     # plot
     plt.figure()
     for band in energies.transpose():
-        plt.plot(np.arange(nkps), band, c='r')
+        plt.scatter(np.arange(nkps), band, c='r', s=0.1)
     plt.xticks([0, N, 2*N, 3*N], [r'$\Gamma$', 'M', 'X', r'$\Gamma$'])
     plt.ylabel(r'$\varepsilon_n(\vec k)$')
     plt.show()
+
+def compute_energies(H, N=30):
+    kxs = np.linspace(-np.pi, np.pi, N)
+    kys = np.linspace(-np.pi, np.pi, N)
+
+    kxv, kyv = np.meshgrid(kxs, kys)
+    kxv = kxv.reshape(-1)
+    kyv = kyv.reshape(-1)
+
+    energies = np.zeros((N**2, H.Ns))
+        
+    for i, (kx, ky) in enumerate(zip(kxv, kyv)):
+        mat = ft(H, [kx, ky])
+        energies[i] = np.linalg.eigh(mat)[0]
+
+    return energies, kxs, kys
+
+def classify_phase(Es, kxs, kys):
+    E0 = np.min(Es)
+    nkps = np.count_nonzero(np.isclose(E0, Es, atol=1e-3))
+
+    return 'liquid' if nkps > 10 else 'order'
+    
+def phase_diagram():
+    Jmin, Jmax = 0, 2.5
+    NJ = 100
+
+    J2s = np.linspace(Jmin, Jmax, NJ)
+    J3s = np.linspace(Jmin, Jmax, NJ)
+
+    J2v, J3v = np.meshgrid(J2s, J3s)
+    J2v = J2v.reshape(-1)
+    J3v = J3v.reshape(-1)
+
+    phases = np.zeros((NJ**2, 3))
+    for i, (J2, J3) in enumerate(zip(J2v, J3v)):
+        print(f'Doing {i} / {NJ ** 2} ({i / NJ**2 * 100}%)')
+        H = load_interaction_file('hamiltonians/skl.dat', [1, J2, J3])
+        p = classify_phase(*compute_energies(H))
+        if p == 'liquid':
+            phases[i] = np.array([0, 1, 0])
+        else:
+            phases[i] = np.array([0, 0, 1])
+
+    phases = phases.reshape(NJ, NJ, 3)
+
+    plt.figure()
+    plt.imshow(phases, origin='lower')
+    plt.xlabel('$J_2 / J_1$')
+    plt.ylabel('$J_3 / J_1$')
+    plt.show()
+    return phases
     
 def main():
     # SKL
-    J1, J2, J3 = 1, 2.5, 2.5 # trivial Néel order
+    J1, J2, J3 = 1, 1, 1.1 # trivial Néel order
     h = load_interaction_file('hamiltonians/skl.dat', [J1, J2, J3])
 
     # square lattice
     # J1, J2 = 1, 0 # should be only a pair of minima, with 2pi/3 phase
     # h = load_interaction_file('hamiltonians/square.dat', [J1, J2])
 
-    N = 51
+    N = 50
     kxs = np.linspace(-np.pi, np.pi, N)
     kys = np.linspace(-np.pi, np.pi, N)
 
@@ -111,7 +163,7 @@ def main():
         xs = np.linalg.eigh(mat)
         energies[i] = xs[0]
 
-    for i in [0, 1]: # range(h.Ns):
+    for i in range(h.Ns):
         plt.figure()
         plt.imshow(energies[:, i].reshape(N, N),
                    extent=np.pi * np.array([-1, 1, -1, 1]))
