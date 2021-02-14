@@ -103,31 +103,33 @@ def compute_energies(H, N=20):
     return energies, kxs, kys
 
 def classify_phase(Es, kxs, kys):
-    # old classification
+    # # new classification
+    # Es = Es[:, 0]
     # E0 = np.min(Es)
-    # nkps = np.count_nonzero(np.isclose(E0, Es, atol=1e-3))
+    # idcs = np.where(np.isclose(E0, Es, atol=1e-2))[0]
 
-    # return 'liquid' if nkps > 10 else 'order'
+    # kxv, kyv = np.meshgrid(kxs, kys)
+    # kxv = kxv.reshape(-1)
+    # kyv = kyv.reshape(-1)
+    
+    # k = np.column_stack([kxv[idcs], kxv[idcs]])
+    # # print(f'number of kpoints: {len(k)}')
+    # mean, std = np.mean(k, axis=0), np.std(k, axis=0)
+    # # print(f'mean={mean}, std={std}')
+    
+    # if max(std) > 1:
+    #     return 'liquid'
+    # else:
+    #     assert np.isclose(mean, [0, 0]).all()
+    #     return 'order'
 
-    # new classification
+    # new new classification
+    # liquid if flat band
     Es = Es[:, 0]
-    E0 = np.min(Es)
-    idcs = np.where(np.isclose(E0, Es, atol=1e-1))[0]
+    std = np.std(Es)
 
-    kxv, kyv = np.meshgrid(kxs, kys)
-    kxv = kxv.reshape(-1)
-    kyv = kyv.reshape(-1)
-    
-    k = np.column_stack([kxv[idcs], kxv[idcs]])
-    # print(f'number of kpoints: {len(k)}')
-    mean, std = np.mean(k, axis=0), np.std(k, axis=0)
-    # print(f'mean={mean}, std={std}')
-    
-    if max(std) > 1:
-        return 'liquid'
-    else:
-        assert np.isclose(mean, [0, 0]).all()
-        return 'order'
+    print(f'std = {std}')
+    return 'liquid' if std < 0.01 else 'order'
     
 def phase_diagram():
     Jmin, Jmax = 0, 2.5
@@ -161,10 +163,12 @@ def phase_diagram():
     plt.ylabel('$J_3 / J_1$')
     plt.show()
     return phases
-    
+
 def main():
     # SKL
-    J1, J2, J3 = 1, 0.2777777777777778, 0.2777777777777778 # trivial Néel order
+    # J1, J2, J3 = 1, 1, 0 # trivial Néel order
+    # J1, J2, J3 = 1, 2.5, 2.5 # UUD
+    J1, J2, J3 = 0, 1, 1 # UUD theory
     h = load_interaction_file('hamiltonians/skl.dat', [J1, J2, J3])
 
     # square lattice
@@ -200,4 +204,53 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # E, v = iterative_minimization()
+
+def plot_configuration(h, v, title=None):
+    L = 5
+
+    # plt.figure()
+    # plot lattice points
+    for i in range(L):
+        for j in range(L):
+            # draw bonds
+            R = np.array([i, j])
+            rs = R.reshape(1, -1) + h.rs
+            for a in range(h.Ns):
+                for b in range(h.Ns):
+                    for (di, dj, c) in h.couplings[a][b]:
+                        if h.coupling_values[c] == 0.: continue
+                        line = plt.Line2D((rs[a, 0], rs[b, 0] + di),
+                                          (rs[a, 1], rs[b, 1] + dj),
+                                          color='k')
+                        plt.gca().add_line(line)
+            # draw sites
+            cs = ['b' if x > 0 else 'r' for x in v]
+            plt.scatter(rs[:, 0], rs[:, 1], c=cs, zorder=10)
+            
+                        
+
+    # draw unit cells
+    # lines = [plt.Line2D((i, i), (0, L)) for i in range(L+1)] \
+    #       + [plt.Line2D((0, L), (i, i)) for i in range(L+1)]
+    # for line in lines:
+    #     plt.gca().add_line(line)
+    
+    plt.axis('scaled')
+    plt.xticks([])
+    plt.yticks([])
+    plt.xlim([1, L-1])
+    plt.ylim([1, L-1])
+    if title: plt.title(title)
+    # plt.show()
+    
+def plot_phases():
+    hn = load_interaction_file('hamiltonians/skl.dat', [1, 1, 0])
+    huud = load_interaction_file('hamiltonians/skl.dat', [0, 1, 1])
+
+    plt.subplot(1, 2, 1)
+    plot_configuration(hn, np.linalg.eigh(ft(hn, [0, 0]))[1][:, 0], 'Néel order ($J_1 = J_2 = 1$, $J_3 = 0$)')
+    plt.subplot(1, 2, 2)
+    plot_configuration(huud, np.linalg.eigh(ft(huud, [0, 0]))[1][:, 0], 'UUD ($J_1 = 0$, $J_2, J_3 = 1$)')
+    plt.tight_layout()
+    # plt.savefig('figs/lt_phases.eps')
+    plt.show()

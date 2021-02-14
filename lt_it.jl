@@ -11,69 +11,7 @@
 using LinearAlgebra
 using Printf
 using FFTW
-
-function iscomment(line)
-    line == "" || line[1] == '#'
-end
-
-struct ParamHamiltonian
-    # Like Hamiltonian, but the couplings are not replaced yet
-    Ns :: Int
-    couplings :: Array{Array{Tuple{Int, Int, Int, Int}}}
-    rs :: Array{Float64, 2} # shape: (2, Ns)
-end
-
-struct Hamiltonian
-    Ns :: Int
-    couplings :: Array{Array{Tuple{Int, Int, Int, Float64}}}
-    rs :: Array{Float64, 2} # shape: (2, Ns)
-end
-
-function mkhamiltonian(paramH, couplings)
-    Hamiltonian(paramH.Ns, map(paramH.couplings) do (cs)
-                map(cs) do (i, j, s, c)
-                (i, j, s, couplings[c])
-                end
-                end, paramH.rs)
-end
-
-function loadparamhamiltonian(path)
-    open(path, "r") do io
-        # compute the number of sites
-        line = ""
-        while iscomment(line)
-            line = readline(io)
-        end
-        Ns = parse(Int, line)
-        
-        # parse site coordinates
-        rs = zeros(2, Ns)
-        
-        let n = 1; while n <= Ns
-            # skip comments
-            line = readline(io)
-            if iscomment(line) continue end
-            rs[:, n] = [parse(Float64, x) for x in split(line)]
-            n += 1
-        end end
-        
-        # now make a NsxNs matrix of arrays
-        bonds = fill(Tuple{Int, Int, Int, Int}[], Ns)
-        
-        for line in eachline(io)
-            # skip comments
-            if iscomment(line) continue end
-            s1, i, j, s2, c = [parse(Int, x) for x in split(line)]
-            push!(bonds[s1+1], (i+1, j+1, s2+1, c+1))
-        end
-
-        ParamHamiltonian(Ns, bonds, rs)
-    end
-end
-
-function loadhamiltonian(path, couplings)
-    mkhamiltonian(loadparamhamiltonian(path), couplings)
-end
+using HDF5
 
 function wrapindex(i, L)
     1 + (i - 1) % L
@@ -147,11 +85,7 @@ function structuralfactor(v, rs)
     1 / Ntot * real(mapslices(sum, conj(vk) .* vk, dims=1))
 end
 
-function main()
-    L = 32
-    tol = 1e-9
-    # H = loadhamiltonian("hamiltonians/skl.dat", [1, 0.4, 2])
-    H = loadhamiltonian("hamiltonians/square.dat", [1, 0.1])
+function runone(H, L, tol)
     Ntot = H.Ns * L^2
     
     v = randomvec(L, H.Ns)
@@ -163,10 +97,22 @@ function main()
         Eold = E
         mcstep!(H, v, Ntot)
         E = energy(H, v)
-        @printf "E = %f\n" E
+        # @printf "E = %f\n" E
     end
 
     E, v, structuralfactor(v, H.rs)
+end
+
+function runmany(H, L, tol, k)
+    E = zeros(k)
+    v = zeros(3, H.Ns, L, L, k)
+    f = zeros(L, L, k)
+
+    for i in 1:k
+        E[i], v[:, :, :, :, i], f[:, :, i] = runone(H, L, tol)
+    end
+
+    E, v, f
 end
 
 function mkparams(n, min, max)
@@ -184,6 +130,50 @@ function mkparams(n, min, max)
     end
     
     params
+end
+
+function save(output, E, v, f, params)
+    h5open(output, "w") do file
+        # for each params
+        for i in 1:size(E)[2]
+            g = create_group(file, "params-" * string(i))
+            # couplings
+            attributes(g)["J1"] = params[1, i]
+            attributes(g)["J2"] = params[2, i]
+            attributes(g)["J3"] = params[3, i]
+            # for every sample
+            for k in 1:size(E)[2]
+                h = create_group(g, "sample-" * string(k))
+                h["E"] = E[k, i]
+                h["v"] = v[:, :, :, :, k, i]
+                h["f"] = f[:, :, k, i]
+            end
+        end
+    end
+end
+
+function run()
+    n = 2
+    nsamples = 2
+    output = "ltit.h5"
+    L = 32
+    tol = 1e-9
+    
+    params = mkparams(n, 0, 2.5)
+    paramH = loadparamhamiltonian("hamiltonians/square.dat")
+
+    nparams = size(params)[2]
+    E = zeros(nsamples, nparams)
+    v = zeros(3, paramH.Ns, L, L, nsamples, nparams)
+    f = zeros(L, L, nsamples, nparams)
+    
+    for i in 1:nparams
+        @printf "Doing J2=%f, J3=%f\n" params[2, i] params[3, i]
+        H = mkhamiltonian(paramH, params[:, i])
+        E[:, i], v[:, :, :, :, :, i], f[:, :, :, i] = runmany(H, L, tol, nsamples)
+    end
+
+    save(output, E, v, f, params)
 end
 
 # -----------------------------------------------------------------------------
